@@ -1,0 +1,321 @@
+//#ifdef _CH_
+//#pragma package <opencv>
+//#endif
+//#include <math.h>
+#include <cv.h>
+#include <highgui.h>
+#include <cvaux.h>
+#include<iostream>
+#include <stdio.h>
+#include <time.h>
+#include<fstream>
+#include<stdlib.h>
+#include<string.h>
+
+using namespace cv;
+using namespace std;
+
+
+//#include <iostream.h>
+/*#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
+*/
+
+const char *displaywindow="Vision Based Text Recognition";
+const char *window1="binary image";
+IplImage* imagen;
+IplImage* imagen_color;
+IplImage* smooth;
+IplImage* thresh;
+IplImage* open_morf;
+IplImage* blobResult;
+IplImage* img_contornos;
+CvSeq* contour;
+CvSeq* contourLow;
+CvMoments momentrr;
+CvHuMoments humoments;
+IplImage *resized;
+IplImage *zone[16];
+
+Mat binary;
+
+using namespace cv;
+int whitePixels = 0,zone_val[16];
+char c;
+const int f1=100;
+const char *fileNames[]={"D:/samples/0.txt",
+"D:/samples/1.txt","D:/samples/2.txt","D:/samples/3.txt","D:/samples/4.txt","D:/samples/5.txt","D:/samples/6.txt","D:/samples/7.txt","D:/samples/8.txt","D:/samples/9.txt","D:/samples/a.txt","D:/samples/b.txt","D:/samples/c.txt","D:/samples/d.txt","D:/samples/e.txt","D:/samples/f.txt","D:/samples/g.txt","D:/samples/h.txt","D:/samples/i.txt","D:/samples/j.txt","D:/samples/k.txt",
+"D:/samples/l.txt","D:/samples/m.txt","D:/samples/n.txt","D:/samples/o.txt","D:/samples/p.txt","D:/samples/q.txt","D:/samples/r.txt","D:/samples/s.txt","D:/samples/t.txt","D:/samples/u.txt","D:/samples/v.txt","D:/samples/w.txt","D:/samples/x.txt","D:/samples/y.txt","D:/samples/z.txt","D:/samples/aa.txt","D:/samples/bb.txt","D:/samples/cc.txt","D:/samples/dd.txt","D:/samples/ee.txt","D:/samples/ff.txt",
+"D:/samples/gg.txt","D:/samples/hh.txt","D:/samples/ii.txt","D:/samples/jj.txt","D:/samples/kk.txt","D:/samples/ll.txt","D:/samples/mm.txt","D:/samples/nn.txt","D:/samples/oo.txt","D:/samples/pp.txt","D:/samples/qq.txt","D:/samples/rr.txt","D:/samples/ss.txt","D:/samples/tt.txt","D:/samples/uu.txt","D:/samples/vv.txt","D:/samples/ww.txt","D:/samples/xx.txt","D:/samples/yy.txt","D:/samples/zz.txt"
+};
+
+char names[62]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'};
+
+
+IplImage* crop( IplImage* src,  CvRect roi)
+{
+  // Must have dimensions of output image
+	IplImage* cropped = cvCreateImage( cvSize(roi.width,roi.height), src->depth,src->nChannels);
+  // Say what the source region is
+  cvSetImageROI( src, roi );
+  // Do the copy
+  cvCopy( src, cropped );
+  cvResetImageROI( src );
+  //cvNamedWindow( "check",WINDOW_AUTOSIZE);
+  //cvShowImage( "check", cropped );
+  
+  return cropped;
+}
+
+IplImage* img_resize(IplImage* src_img, int new_width,int new_height)
+{
+    IplImage* des_img;
+    des_img=cvCreateImage(cvSize(new_width,new_height),src_img->depth,src_img->nChannels);
+    cvResize(src_img,des_img,CV_INTER_LINEAR);
+    return des_img;
+} 
+int main( int argc, char** argv )
+{
+		//Mat img=imread("D:/1st/img/a/1.png");		
+        printf( "Vision based text recognition-Segmentation part\n"
+                        "\tESC - quit the program\n");
+                                                    
+        /**
+         * Init images
+         **/                
+                //load image  in gray level
+                imagen=cvLoadImage("D:/a/num.png",0);  //if 0 is given image read is grayscale
+                //load image in RGB
+                imagen_color=cvLoadImage("D:/a/num.png",1);
+	 imagen=cvCreateImage(cvSize(imagen_color->width, imagen_color->height), IPL_DEPTH_8U, 1);
+			
+			cvCvtColor(imagen_color,imagen,CV_RGB2GRAY);
+
+			smooth= cvCreateImage(cvSize(imagen->width, imagen->height), IPL_DEPTH_8U, 1);
+			thresh= cvCreateImage(cvSize(imagen->width, imagen->height), IPL_DEPTH_8U, 1);
+			open_morf= cvCreateImage(cvSize(imagen->width, imagen->height), IPL_DEPTH_8U, 1);
+	
+        //Init variables for contours
+        contour = 0;
+        contourLow = 0;
+        //Create storage needed for contour detection
+        CvMemStorage* storage = cvCreateMemStorage(0);
+
+        //Create window
+        cvNamedWindow( displaywindow, 0 );
+
+		//cvNamedWindow(window1,1);
+        //Smooth image
+        cvSmooth(imagen, smooth, CV_GAUSSIAN, 3,3);  
+		//Here the smooth type is gaussian and kernel size is 3x3..the gaussian kernel gives more importance to middle elements
+        
+        CvScalar avg;
+        CvScalar avgStd;
+        cvAvgSdv(smooth, &avg, &avgStd, NULL);
+       // printf("Avg: %f\nStd: %f\n", avg.val[0], avgStd.val[0]);
+		//cvEqualizeHist(smooth,smooth);
+        //threshold image
+        cvThreshold(smooth, thresh, (int)avg.val[0]-7*(int)(avgStd.val[0]/8), 255, CV_THRESH_BINARY_INV);
+		//Morphological filters
+        cvErode(thresh, open_morf, NULL,0); 
+        cvDilate(open_morf, open_morf, NULL,0); 
+        
+		img_contornos=cvCloneImage(open_morf);
+		
+		
+	    
+       //Search countours in preprocesed image
+        cvFindContours( img_contornos, storage, &contour, sizeof(CvContour),              //page 262 oreilly
+                        CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, cvPoint(0, 0) );
+        //Optimize contours, reduce points
+        contourLow=cvApproxPoly(contour, sizeof(CvContour), storage,CV_POLY_APPROX_DP,1,1);
+        int count=0;
+		CvPoint *pt[3];
+		
+		CvPoint c,a,b,d,e,f,g,p11,p21,p31,p41,p51,p61,p71,p81;
+        
+        //For each contour found
+		//printf("CONTOUR TOTAL:%d\n",contourLow->elem_size);
+		
+        for(; contourLow != 0; contourLow = contourLow->h_next )
+        {
+                CvScalar color = CV_RGB( rand()&200, rand()&200, rand()&200 );
+                //We can draw the contour of object
+                //cvDrawContours( imagen_color, contourLow, color, color, -1, 0, 8, cvPoint(0,0) );
+                //Or detect bounding rect of contour        
+                CvRect rect;
+                CvPoint pt1, pt2;
+                rect=cvBoundingRect(contourLow, NULL);
+				    pt1.x = rect.x;
+                    pt2.x = (rect.x+rect.width);
+                    pt1.y = rect.y;
+                    pt2.y = (rect.y+rect.height);
+					cvRectangle(imagen_color, pt1,pt2, color, 1); 
+					
+					IplImage* cropp = crop(open_morf, cvRect( pt1.x,pt1.y,rect.width,rect.height ));
+					resized=img_resize(cropp,128,128);
+        
+					binary=Mat(resized,true);
+					int tot=countNonZero(binary);
+					//printf("TOTAL BLaCK %d\n",tot);
+					zone[0] = crop(resized, cvRect( 0,0,32,32 ));
+					zone[1] = crop(resized, cvRect( 32,0,32,32 ));
+					zone[2] = crop(resized, cvRect( 64,0,32,32 ));
+					zone[3] = crop(resized, cvRect( 96,0,32,32 ));
+					
+					zone[4] = crop(resized, cvRect( 0,32,32,32 ));
+					zone[5] = crop(resized, cvRect( 32,32,32,32 ));
+					zone[6] = crop(resized, cvRect( 64,32,32,32 ));
+					zone[7] = crop(resized, cvRect( 96,32,32,32 ));
+
+					zone[8] = crop(resized, cvRect( 0,64,32,32 ));
+					zone[9] = crop(resized, cvRect( 32,64,32,32 ));
+					zone[10] = crop(resized, cvRect( 64,64,32,32 ));
+					zone[11] = crop(resized, cvRect( 96,64,32,32 ));
+
+					zone[12] = crop(resized, cvRect( 0,96,32,32 ));
+					zone[13] = crop(resized, cvRect( 32,96,32,32 ));
+					zone[14] = crop(resized, cvRect( 64,96,32,32 ));
+					zone[15] = crop(resized, cvRect( 96,96,32,32 ));
+					for (int k=0;k<16;k++)
+					{
+						binary=Mat(zone[k],true);
+						zone_val[k]=countNonZero(binary);
+						//printf("\nZONE%d \t %d",k,zone_val[k]);
+					}
+						
+
+						//printf("distances:%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t\n",dis1,dis2,dis3,dis4,dis5,dis6,dis7,dis8,dis9,dis10,dis11,dis12,dis13,dis14,dis15,dis16);
+
+	static int data[10][100][16];
+//int data1[8][1016][16];
+
+		//static int noofrows[10];
+		//printf("The static value %d",noofrows[0]);
+		//int noofrows1=0;
+	for(int ii=0;ii<10;ii++)
+	{
+		std::fstream myfile(fileNames[ii], std::ios_base::in);
+	    
+	for(int i=0;i<100;i++)
+	{
+		for(int j=0;j<16;j++)
+	{
+		//if(myfile.eof())
+			//goto here;
+			 myfile >> data[ii][i][j];
+    //printf("%f\t",data[ii][i][j]);
+	}
+		//printf("\n");
+		//noofrows1++;
+	}
+	//here:
+	//noofrows[ii]=noofrows1;
+	//noofrows1=0;
+	
+	}
+	/*int noofrows2=0;
+	for(int nrows=0;nrows<62;nrows++)
+		noofrows2+=noofrows[nrows];*/
+
+	//printf("The no of rows is %d",noofrows2);
+		
+
+
+		//cvShowImage(displaywindow,open_morf);
+        //Main Loop
+        
+		static float trainingsvm[1000][16];
+		static float traininglabels[1000][1];
+		int svmindex=0;
+		
+	for(int k=0;k<10;k++)
+	{  
+		for (int i = 0; i<100; i++) 
+		{
+         for (int j = 0; j < 16; j++) 
+		   {
+			 
+        trainingsvm[svmindex][j]= (float)data[k][i][j];
+		traininglabels[svmindex][0]=(float)k;
+		
+		
+            }
+		 svmindex++;
+		 //if(svmindex>=(k*i))//(noofrows[0]+noofrows[1]+noofrows[2]+noofrows[3]+noofrows[4]/*+noofrows[5]+noofrows[6]+noofrows[7]+noofrows[8]+noofrows[9]*/))
+			//	goto three;
+        }
+		
+   }
+	    
+	
+three:  cv::Mat trainingsvmmat(1000,16,CV_32FC1,trainingsvm);
+	    cv::Mat traininglabelsmat(1000,1,CV_32FC1,traininglabels);
+		
+		// Set up SVM's parameters
+    CvSVMParams params;
+    params.svm_type    = CvSVM::C_SVC;
+    params.kernel_type = CvSVM::LINEAR;
+    params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+
+    // Train the SVM
+    CvSVM SVM;
+	SVM.train(trainingsvmmat, traininglabelsmat, Mat(), Mat(), params);
+	SVM.save("new");
+	//SVM.load("new");
+
+	float example[1][16];
+
+
+	example[0][0]=zone_val[0];example[0][1]=zone_val[1];example[0][2]=zone_val[2];example[0][3]=zone_val[3];example[0][4]=zone_val[4];
+	example[0][5]=zone_val[5];example[0][6]=zone_val[6];example[0][7]=zone_val[7];example[0][8]=zone_val[8];example[0][9]=zone_val[9];
+	example[0][10]=zone_val[10];example[0][11]=zone_val[11];example[0][12]=zone_val[12];example[0][13]=zone_val[13];
+	example[0][14]=zone_val[14];example[0][15]=zone_val[15];
+
+	cv::Mat exapmlemat(1,16,CV_32FC1,example);
+
+	float results=SVM.predict(exapmlemat);
+
+	
+	int chara=int(results);
+	
+	printf("%c",names[chara]); 
+	//printf("\n%d\n%d\n%d\n%d\n%f",data[0][0][0],chara,svmindex,svmindex,traininglabels[0][0]);
+		//getchar();
+
+						
+						
+}
+		cvShowImage(displaywindow, imagen_color);
+		//_mm_pause();
+		//cvShowImage(displaywindow,open_morf);
+        //Main Loop
+        for(;;)
+        {
+                int c;
+
+                c = cvWaitKey(10);
+                if( (char) c == 27 )
+                        break;
+                else if((char) c=='3')
+					imshow(displaywindow,binary);
+                        //cvShowImage(displaywindow, thresh);
+                else if((char) c=='1')
+                        cvShowImage(displaywindow, imagen);
+                else if((char) c=='2')
+                        cvShowImage(displaywindow, smooth);
+                else if((char) c=='4')
+                        cvShowImage(displaywindow, open_morf);
+                else if((char) c=='r')
+                        cvShowImage(displaywindow, imagen_color);
+					
+				
+        }
+
+        cvDestroyWindow(displaywindow);
+
+        return 0;
+}
+		
